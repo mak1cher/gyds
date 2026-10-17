@@ -765,13 +765,15 @@ function getStep4ScheduleHtml() {
     const accentTheme = isBreak
       ? {
           badge: 'text-amber-800 bg-amber-100/90 border-amber-200/80',
-          title: 'text-amber-950',
+          codeBadge: 'text-amber-800 bg-amber-100/80 border-amber-200/70',
+          nameColor: 'text-amber-900',
           timeBadge: 'text-amber-950 bg-amber-100/80 border-amber-200/80',
           border: 'border-amber-300 shadow-md bg-gradient-to-br from-amber-50/70 via-white to-white'
         }
       : {
           badge: 'text-indigo-700 bg-indigo-50 border-indigo-100',
-          title: 'text-slate-900',
+          codeBadge: 'text-slate-500 bg-slate-100/90 border-slate-200/70',
+          nameColor: 'text-sky-700',
           timeBadge: 'text-indigo-950 bg-indigo-50/90 border-indigo-100',
           border: 'border-indigo-100/80 shadow-md bg-white/95'
         };
@@ -789,11 +791,16 @@ function getStep4ScheduleHtml() {
         </div>
 
         <div>
-          <div class="text-2xl font-black ${accentTheme.title} tracking-tight">
-            ${state.circuit}${currentSlot.pos.id} ${currentSlot.pos.name}
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-mono text-xs font-bold px-2 py-0.5 rounded-lg border shadow-xs ${accentTheme.codeBadge}">
+              ${state.circuit}${currentSlot.pos.id}
+            </span>
+            <span class="text-2xl sm:text-[26px] font-black tracking-tight ${accentTheme.nameColor}">
+              ${currentSlot.pos.name}
+            </span>
           </div>
           <!-- Wyraźnie i estetycznie wyróżniony czas slotu -->
-          <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl font-mono text-xs font-black border mt-1.5 ${accentTheme.timeBadge}">
+          <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl font-mono text-xs font-black border mt-2 ${accentTheme.timeBadge}">
             <span>${fmt(currentSlot.start)} – ${fmt(currentSlot.end)}</span>
           </div>
         </div>
@@ -815,7 +822,8 @@ function getStep4ScheduleHtml() {
           <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
             <span class="text-slate-400 font-medium">Następnie:</span>
             <div class="flex items-center gap-1.5">
-              <span class="font-black text-slate-800">${state.circuit}${nextSlot.pos.id} ${nextSlot.pos.name}</span>
+              <span class="font-mono text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200/60">${state.circuit}${nextSlot.pos.id}</span>
+              <span class="font-black ${nextSlot.pos.isBreak ? 'text-amber-800' : 'text-slate-800'}">${nextSlot.pos.name}</span>
               <span class="font-mono text-[11px] font-extrabold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200/60">${fmt(nextSlot.start)}</span>
             </div>
           </div>
@@ -896,10 +904,26 @@ function getStep4ScheduleHtml() {
       rowBg = 'bg-emerald-50/30 border-emerald-100/60 text-slate-800';
     }
 
+    let codeBadgeClass = 'bg-slate-100/90 text-slate-500 border border-slate-200/70';
+    if (isPast) {
+      codeBadgeClass = 'bg-slate-100/60 text-slate-400 border border-slate-200/50';
+    } else if (isCur) {
+      codeBadgeClass = 'bg-indigo-100/80 text-indigo-700 border border-indigo-200/80';
+    } else if (p.isBreak) {
+      codeBadgeClass = 'bg-amber-100/80 text-amber-900 border border-amber-200/70';
+    }
+
     slotsHtml += `
       <div class="flex items-center justify-between p-2.5 rounded-2xl border text-xs transition ${rowBg}">
         <span class="font-mono text-xs w-28 shrink-0 font-extrabold ${timeColor}">${fmt(slot.start)} – ${fmt(slot.end)}</span>
-        <span class="truncate flex-1 px-1.5 font-bold">${state.circuit}${slot.pos.id} ${slot.pos.name}</span>
+        <div class="flex items-center gap-1.5 min-w-0 flex-1 px-1.5">
+          <span class="font-mono text-[10.5px] font-bold px-1.5 py-0.5 rounded-md shrink-0 select-none ${codeBadgeClass}">
+            ${state.circuit}${slot.pos.id}
+          </span>
+          <span class="truncate font-bold ${isCur ? 'text-indigo-950 font-black' : (isPast ? 'text-slate-400' : (p.isBreak ? 'text-amber-950' : 'text-slate-800'))}">
+            ${slot.pos.name}
+          </span>
+        </div>
         ${badgeHtml}
       </div>
     `;

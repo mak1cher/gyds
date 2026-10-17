@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Rotacja zmian</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+body {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: linear-gradient(135deg, #f8faff 0%, #faf9fe 50%, #fdfbf7 100%);
+  min-height: 100vh;
+  color: #1e293b;
+  overscroll-behavior-y: none;
+}
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Panele szklane */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 10px 30px -5px rgba(99, 102, 241, 0.06), 0 4px 12px -2px rgba(0, 0, 0, 0.03);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 20px -2px rgba(99, 102, 241, 0.05), 0 2px 6px rgba(0, 0, 0, 0.02);
+}
+
+/* Animacje ekranów */
+.screen-enter {
+  animation: screenIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.screen-exit {
+  animation: screenOut 0.18s cubic-bezier(0.7, 0, 0.84, 0) forwards;
+}
+
+@keyframes screenIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes screenOut {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-8px) scale(0.985); }
+}
+
+/* Przełącznik */
+.soft-switch {
+  position: relative;
+  width: 46px;
+  height: 26px;
+  border-radius: 13px;
+  background-color: #e2e8f0;
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.soft-switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  background-color: #ffffff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.soft-switch.active {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+.soft-switch.active::after {
+  transform: translateX(20px);
+}
+
+/* Suwak czasu */
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: #e2e8f0;
+  outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  cursor: pointer;
+  border: 2px solid #ffffff;
+  box-shadow: 0 3px 8px rgba(79, 70, 229, 0.35);
+}
+</style>
+</head>
+<body class="flex flex-col justify-between">
+
+<!-- Nagłówek aplikacji -->
+<header class="w-full max-w-md mx-auto px-4 pt-4 pb-2 flex items-center justify-between">
+  <div>
+    <h1 class="text-base font-extrabold tracking-tight text-slate-800 leading-tight">Rotacja zmian</h1>
+    <p id="nav-subtitle" class="text-xs text-slate-500 font-medium">Harmonogram stanowisk</p>
+  </div>
+  <div id="nav-actions" class="flex items-center gap-2"></div>
+</header>
+
+<!-- Główna zawartość -->
+<main class="w-full max-w-md mx-auto px-4 py-2 flex-1 flex flex-col justify-center">
+  <div id="app-container" class="w-full min-h-[420px] flex flex-col justify-center"></div>
+</main>
+
+<!-- Stopka -->
+<footer class="w-full max-w-md mx-auto px-4 py-3 text-center text-xs text-slate-400 font-medium">
+  <span id="footer-text">Obwód A • Obwód B</span>
+</footer>
+
+<!-- Okno modalne konfiguracji -->
+<div id="modal-container" class="hidden"></div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════
+// 1. STANOWISKA (OBWÓD A & B)
+// ═══════════════════════════════════════════════════════════
+
+const OBWOD_A = [
+  { id: 1,  name: 'Przerwa',          sub: null,      isBreak: true },
+  { id: 2,  name: 'Brodzik',          sub: 'SLIDES1' },
+  { id: 3,  name: 'Rzeka przygód',    sub: 'SLIDES1' },
+  { id: 4,  name: 'Fala',             sub: null },
+  { id: 5,  name: 'Cypel',            sub: null },
+  { id: 6,  name: 'Plaża',            sub: null },
+  { id: 7,  name: 'Koraliki',         sub: null },
+  { id: 8,  name: 'Bubling',          sub: null },
+  { id: 9,  name: 'Bar wewnętrzny',   sub: null },
+  { id: 10, name: 'Relax 1',          sub: null },
+  { id: 11, name: 'Relax 2',          sub: null },
+  { id: 12, name: 'Dzika rzeka 1',    sub: null },
+  { id: 13, name: 'Dzika rzeka 2',    sub: null },
+];
+
+const OBWOD_B = [
+  { id: 1,  name: 'Przerwa',          sub: null,      isBreak: true },
+  { id: 2,  name: 'Grota',            sub: 'SLIDES2' },
+  { id: 3,  name: 'Anaconda',         sub: 'SLIDES2' },
+  { id: 4,  name: 'Wyciągarka',       sub: 'SLIDES2' },
+  { id: 5,  name: 'Viper',            sub: 'SLIDES2' },
+  { id: 6,  name: 'Krokodyl',         sub: null,      defOff: true },
+  { id: 7,  name: 'Vital',            sub: null },
+  { id: 8,  name: 'Termalny',         sub: null },
+  { id: 9,  name: 'Floating',         sub: null },
+  { id: 10, name: 'Łaźnia',           sub: null },
+  { id: 11, name: 'Termalny zew 1',   sub: null },
+  { id: 12, name: 'Termalny zew 2',   sub: null },
+  { id: 13, name: 'Bar zewnętrzny',   sub: null },
+  { id: 14, name: 'Dmuchaniec',       sub: null,      defOff: true },
+];
+
+const DAYS_NAMES = ['Niedziela', 'Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota'];
+const DAYS_SHORT = ['Nd', 'Pn', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob'];
+
+// ═══════════════════════════════════════════════════════════
+// 2. STAN APLIKACJI (STATE)
+// ═══════════════════════════════════════════════════════════
+
+const state = {
+  step: 1, // 1: Imię, 2: Obwód, 3: Stanowisko, 4: Panel główny
+  userName: localStorage.getItem('shift_name') || '',
+  day: new Date().getDay(),
+  circuit: localStorage.getItem('shift_circuit') || 'A',
+  startIdx: null,
+  offA: JSON.parse(localStorage.getItem('shift_off_A') || '[]'),
+  offB: JSON.parse(localStorage.getItem('shift_off_B') || '[5, 13]'), // Krokodyl (5), Dmuchaniec (13)
+  testMode: false,
+  testMinutes: 600,
+  showAllSlots: false,
+};
+
+function saveSettings() {
+  localStorage.setItem('shift_name', state.userName);
+  localStorage.setItem('shift_circuit', state.circuit);
+  localStorage.setItem('shift_off_A', JSON.stringify(state.offA));
+  localStorage.setItem('shift_off_B', JSON.stringify(state.offB));
+}
+
+function getPositions() {
+  return state.circuit === 'A' ? OBWOD_A : OBWOD_B;
+}
+
+function getDisabledSet() {
+  return new Set(state.circuit === 'A' ? state.offA : state.offB);
+}
+
+function isSlide(p) {
+  return p.sub === 'SLIDES1' || p.sub === 'SLIDES2';
+}
+
+function fmt(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// 3. LOGIKA I REGULAMIN ZMIAN
+// ═══════════════════════════════════════════════════════════
+
+function getDayConfig(day) {
+  const isFriSat = (day === 5 || day === 6);
+  const isWed = (day === 3);
+  const isWeekend = (day === 0 || day === 6);
+
+  let regStart = 585; // 09:45
+  let slidesStart, firstSlidesTrans;
+
+  if (isWeekend) {
+    slidesStart = 585; // 09:45
+    firstSlidesTrans = 625; // 10:25
+  } else if (isWed) {
+    slidesStart = 615; // 10:15
+    firstSlidesTrans = 655; // 10:55
+  } else {
+    slidesStart = 765; // 12:45
+    firstSlidesTrans = 805; // 13:25 (w slocie 12:55 zjeżdżalnie są jeszcze omijane)
+  }
+
+  let critSlot, earlyEnd, shiftEnd;
+  if (isFriSat) {
+    critSlot = 1255; // 20:55
+    earlyEnd = 1260; // 21:00
+    shiftEnd = 1335; // 22:15 (obiekt zamyka się o 22:00 + 15 min pracy)
+  } else {
+    critSlot = 1195; // 19:55
+    earlyEnd = 1200; // 20:00
+    shiftEnd = 1275; // 21:15 (obiekt zamyka się o 21:00 + 15 min pracy)
+  }
+
+  return {
+    day,
+    isFriSat,
+    isWed,
+    isWeekend,
+    regStart,
+    slidesStart,
+    firstSlidesTrans,
+    critSlot,
+    earlyEnd,
+    shiftEnd
+  };
+}
+
+function generateTransitionTimes(cfg) {
+  const times = [];
+  const last = cfg.isFriSat ? 1315 : 1255;
+  for (let t = 625; t <= last; t += 30) {
+    times.push(t);
+  }
+  return times;
+}
+
+function areSlidesOpen(t, cfg) {
+  return t >= cfg.firstSlidesTrans && t <= cfg.critSlot;
+}
+
+function findNextPosition(curIdx, positions, disabledSet, slidesOpen) {
+  const n = positions.length;
+  const skipped = [];
+  for (let step = 1; step <= n; step++) {
+    const nextIdx = (curIdx + step) % n;
+    const p = positions[nextIdx];
+    if (disabledSet.has(nextIdx)) {
+      skipped.push({ idx: nextIdx, pos: p, reason: 'off' });
+      continue;
+    }
+    if (isSlide(p) && !slidesOpen) {
+      skipped.push({ idx: nextIdx, pos: p, reason: 'slides_closed' });
+      continue;
+    }
+    return { nextIdx, skipped };
+  }
+  return { nextIdx: curIdx, skipped };
+}
+
+function calculateSchedule(startIdx, circuitKey, dayNum, disabledSet) {
+  const positions = circuitKey === 'A' ? OBWOD_A : OBWOD_B;
+  const cfg = getDayConfig(dayNum);
+  const startPos = positions[startIdx];
+  const slideWorker = isSlide(startPos);
+
+  const startTime = slideWorker ? cfg.slidesStart : cfg.regStart;
+  const transitions = generateTransitionTimes(cfg);
+
+  const firstTrans = slideWorker ? cfg.firstSlidesTrans : 625;
+  const slotStarts = [startTime];
+  for (const t of transitions) {
+    if (t >= firstTrans) {
+      slotStarts.push(t);
+    }
+  }
+
+  const timeline = [];
+  let curIdx = startIdx;
+
+  for (let i = 0; i < slotStarts.length; i++) {
+    const sStart = slotStarts[i];
+    const sEnd = (i + 1 < slotStarts.length) ? slotStarts[i + 1] : cfg.shiftEnd;
+    const pos = positions[curIdx];
+
+    if (sStart === cfg.critSlot && isSlide(pos)) {
+      timeline.push({
+        start: sStart,
+        end: cfg.earlyEnd,
+        posIdx: curIdx,
+        pos,
+        isEarlyFinish: true,
+        skippedNext: []
+      });
+      return {
+        timeline,
+        earlyFinish: true,
+        finishTime: cfg.earlyEnd,
+        finalPos: pos,
+        startTime
+      };
+    }
+
+    const entry = {
+      start: sStart,
+      end: sEnd,
+      posIdx: curIdx,
+      pos,
+      isEarlyFinish: false,
+      skippedNext: []
+    };
+    timeline.push(entry);
+
+    if (i + 1 < slotStarts.length) {
+      const nextTime = slotStarts[i + 1];
+      const slidesActive = areSlidesOpen(nextTime, cfg);
+      const { nextIdx, skipped } = findNextPosition(curIdx, positions, disabledSet, slidesActive);
+      entry.skippedNext = skipped;
+      curIdx = nextIdx;
+    }
+  }
+
+  const last = timeline[timeline.length - 1];
+  return {
+    timeline,
+    earlyFinish: false,
+    finishTime: cfg.shiftEnd,
+    finalPos: last.pos,
+    startTime
+  };
+}
+
+function getCurrentMinutes() {
+  if (state.testMode) return state.testMinutes;
+  const now = new Date();
+  return now.getHours() * 60 + now.getMinutes();
+}
+
+// ═══════════════════════════════════════════════════════════
+// 4. NAWIGACJA MIĘDZY EKRANAMI
+// ═══════════════════════════════════════════════════════════
+
+function setStep(newStep) {
+  const container = document.getElementById('app-container');
+  container.classList.remove('screen-enter');
+  container.classList.add('screen-exit');
+
+  setTimeout(() => {
+    state.step = newStep;
+    renderCurrentStep();
+    container.classList.remove('screen-exit');
+    container.classList.add('screen-enter');
+  }, 190);
+}
+
+// ═══════════════════════════════════════════════════════════
+// 5. RENDEROWANIE EKRANÓW
+// ═══════════════════════════════════════════════════════════
+
+function renderCurrentStep() {
+  updateNav();
+  const container = document.getElementById('app-container');
+
+  switch (state.step) {
+    case 1:
+      renderStep1(container);
+      break;
+    case 2:
+      renderStep2(container);
+      break;
+    case 3:
+      renderStep3(container);
+      break;
+    case 4:
+      renderStep4(container);
+      break;
+  }
+}
+
+function updateNav() {
+  const subtitle = document.getElementById('nav-subtitle');
+  const actions = document.getElementById('nav-actions');
+  const footer = document.getElementById('footer-text');
+
+  if (state.step === 1) {
+    subtitle.textContent = 'Krok 1 • Twoje imię';
+    actions.innerHTML = '';
+    footer.innerHTML = `Dzisiaj: <span class="text-slate-600 font-semibold">${DAYS_NAMES[new Date().getDay()]}</span>`;
+  } else if (state.step === 2) {
+    subtitle.textContent = 'Krok 2 • Wybór obwodu';
+    actions.innerHTML = `
+      <button onclick="setStep(1)" class="text-xs font-semibold px-3 py-1.5 rounded-xl bg-white/80 hover:bg-white text-indigo-600 border border-indigo-100 shadow-sm transition">
+        Wstecz
+      </button>
+    `;
+    footer.textContent = state.userName ? `Pracownik: ${state.userName}` : 'Wybór obwodu';
+  } else if (state.step === 3) {
+    subtitle.textContent = `Krok 3 • Obwód ${state.circuit}`;
+    actions.innerHTML = `
+      <button onclick="setStep(2)" class="text-xs font-semibold px-3 py-1.5 rounded-xl bg-white/80 hover:bg-white text-indigo-600 border border-indigo-100 shadow-sm transition">
+        Wstecz
+      </button>
+    `;
+    footer.textContent = state.userName ? `${state.userName} • Obwód ${state.circuit}` : `Obwód ${state.circuit}`;
+  } else if (state.step === 4) {
+    subtitle.textContent = `${DAYS_NAMES[state.day]} • Obwód ${state.circuit}`;
+    actions.innerHTML = `
+      <button onclick="setStep(3)" class="text-xs font-semibold px-3 py-1.5 rounded-xl bg-white/80 hover:bg-white text-indigo-600 border border-indigo-100 shadow-sm transition">
+        Zmień stanowisko
+      </button>
+      <button onclick="setStep(1)" title="Zresetuj" class="text-xs font-semibold px-2.5 py-1.5 rounded-xl bg-white/80 hover:bg-white text-slate-500 border border-slate-200 shadow-sm transition">
+        Reset
+      </button>
+    `;
+    footer.textContent = state.userName ? `${state.userName} • Harmonogram` : 'Harmonogram';
+  }
+}
+
+// ───────────────────────────────────────────────────────────
+// KROK 1: Imię (dzień ustalany automatycznie)
+// ───────────────────────────────────────────────────────────
+function renderStep1(container) {
+  state.day = new Date().getDay();
+  const now = new Date();
+  const monthsPl = ['stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca', 'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia'];
+  const fullDateStr = `${DAYS_NAMES[state.day]}, ${now.getDate()} ${monthsPl[now.getMonth()]} ${now.getFullYear()}`;
+
+  container.innerHTML = `
+    <div class="space-y-6">
+      
+      <div class="glass-panel p-6 rounded-3xl text-center space-y-2 relative overflow-hidden">
+        <h2 class="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-600 to-sky-600 bg-clip-text text-transparent">
+          Witaj w pracy
+        </h2>
+        <p class="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+          Kalkulator rotacji zmian i przerw. Wpisz swoje imię, aby przejść do harmonogramu.
+        </p>
+        <div class="pt-1">
+          <span class="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-xl">
+            ${fullDateStr}
+          </span>
+        </div>
+      </div>
+
+      <!-- Wprowadzanie imienia -->
+      <div class="glass-card p-4 rounded-2xl space-y-1.5">
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider">Twoje imię <span class="text-rose-500">*</span></label>
+        <input id="name-input" type="text" value="${state.userName}" placeholder="np. Aleksander" autofocus
+          class="w-full bg-slate-50/80 border border-slate-200/80 rounded-xl px-4 py-3 text-sm text-slate-800 font-medium placeholder-slate-400 focus:outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition">
+        <p id="name-error" class="hidden text-xs font-bold text-rose-500 pt-1">
+          Wpisz imię, aby kontynuować
+        </p>
+      </div>
+
+      <!-- Przycisk Kontynuuj -->
+      <button id="btn-next" type="button" onclick="finishStep1()"
+        class="w-full py-4 px-5 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white font-bold text-sm rounded-2xl shadow-lg shadow-indigo-500/25 transition">
+        Dalej →
+      </button>
+
+    </div>
+  `;
+
+  const input = document.getElementById('name-input');
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') finishStep1();
+  });
+  input.addEventListener('input', () => {
+    if (input.value.trim().length > 0) {
+      input.classList.remove('border-rose-400', 'ring-2', 'ring-rose-400/20');
+      const err = document.getElementById('name-error');
+      if (err) err.classList.add('hidden');
+    }
+  });
+}
+
+function finishStep1() {
+  const input = document.getElementById('name-input');
+  const errorMsg = document.getElementById('name-error');
+  const val = input ? input.value.trim() : '';
+
+  if (!val) {
+    if (errorMsg) errorMsg.classList.remove('hidden');
+    if (input) {
+      input.classList.add('border-rose-400', 'ring-2', 'ring-rose-400/20');
+      input.focus();
+    }
+    return;
+  }
+
+  state.userName = val;
+  saveSettings();
+  setStep(2);
+}
+
+// ───────────────────────────────────────────────────────────
+// KROK 2: Wybór obwodu (czysty widok, słowo stanowisko)
+// ───────────────────────────────────────────────────────────
+function renderStep2(container) {
+  container.innerHTML = `
+    <div class="space-y-4">
+      <div class="text-center space-y-1">
+        <h2 class="text-2xl font-extrabold tracking-tight text-slate-800">Wybór obwodu</h2>
+        <p class="text-xs text-slate-500">W którym obwodzie dzisiaj pracujesz?</p>
+      </div>
+
+      <div class="space-y-3 pt-1">
+        <!-- Obwód A -->
+        <button type="button" onclick="selectCircuit('A')"
+          class="w-full text-left p-4 rounded-3xl bg-white border border-indigo-100 hover:border-indigo-300 hover:shadow-md active:scale-[0.99] transition flex items-center justify-between shadow-sm">
+          <div class="flex items-center gap-3.5">
+            <div class="w-11 h-11 rounded-2xl bg-indigo-600 text-white font-black text-lg flex items-center justify-center shadow-md shadow-indigo-500/20">
+              A
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-base font-bold text-slate-800">Obwód A</span>
+                <span class="text-xs font-bold font-mono px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-lg">13 stanowisk</span>
+              </div>
+              <p class="text-xs text-slate-500 mt-0.5">Brodzik, Rzeka przygód...</p>
+            </div>
+          </div>
+          <span class="text-indigo-400 font-bold text-base">→</span>
+        </button>
+
+        <!-- Obwód B -->
+        <button type="button" onclick="selectCircuit('B')"
+          class="w-full text-left p-4 rounded-3xl bg-white border border-purple-100 hover:border-purple-300 hover:shadow-md active:scale-[0.99] transition flex items-center justify-between shadow-sm">
+          <div class="flex items-center gap-3.5">
+            <div class="w-11 h-11 rounded-2xl bg-purple-600 text-white font-black text-lg flex items-center justify-center shadow-md shadow-purple-500/20">
+              B
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-base font-bold text-slate-800">Obwód B</span>
+                <span class="text-xs font-bold font-mono px-2 py-0.5 bg-purple-50 text-purple-700 rounded-lg">14 stanowisk</span>
+              </div>
+              <p class="text-xs text-slate-500 mt-0.5">Grota, Anaconda, Wyciągarka...</p>
+            </div>
+          </div>
+          <span class="text-purple-400 font-bold text-base">→</span>
+        </button>
+      </div>
+
+    </div>
+  `;
+}
+
+function selectCircuit(c) {
+  state.circuit = c;
+  saveSettings();
+  setStep(3);
+}
+
+// ───────────────────────────────────────────────────────────
+// KROK 3: Wybór stanowiska (Kompaktowa siatka 2 kolumny bez przewijania)
+// ───────────────────────────────────────────────────────────
+function renderStep3(container) {
+  const positions = getPositions();
+  const disabledSet = getDisabledSet();
+  const cfg = getDayConfig(state.day);
+
+  let gridHtml = '';
+  positions.forEach((pos, idx) => {
+    const isDis = disabledSet.has(idx);
+    const isSlides = isSlide(pos);
+    const startTimeStr = isSlides ? fmt(cfg.slidesStart) : fmt(cfg.regStart);
+    const posNum = `${state.circuit}${pos.id}`;
+
+    let cardBg = '';
+    let numColor = '';
+    const isSpecialBreak = pos.isBreak;
+
+    if (pos.isBreak) {
+      // 1. PRZERWA: specjalne, wyraziste lecz delikatne wyróżnienie
+      cardBg = 'bg-amber-50/80 border border-amber-300/90 shadow-xs hover:border-amber-400';
+      numColor = 'text-amber-900 bg-amber-100/90 border border-amber-200/70 font-extrabold';
+    } else if (state.circuit === 'B') {
+      // OBWÓD B:
+      // Grota - Viper (2..5): pastelowy błękit (zjeżdżalnie)
+      // Vital - Termalny 2 (7..12): miękki ciepły pomarańcz
+      // Bar - Dmuchaniec (13..14): delikatna mięta (Dmuchaniec domyślnie wyłączony)
+      // Krokodyl (6): domyślnie wyłączony
+      if (pos.id >= 2 && pos.id <= 5) {
+        cardBg = 'bg-sky-50/50 border border-sky-200/70 hover:border-sky-300 shadow-xs';
+        numColor = 'text-sky-900 bg-sky-100/80 border border-sky-200/60';
+      } else if (pos.id >= 7 && pos.id <= 12) {
+        cardBg = 'bg-orange-50/65 border border-orange-200/80 hover:border-orange-300 shadow-xs';
+        numColor = 'text-orange-950 bg-orange-100/90 border border-orange-200/60';
+      } else if (pos.id >= 13) {
+        cardBg = 'bg-emerald-50/50 border border-emerald-200/70 hover:border-emerald-300 shadow-xs';
+        numColor = 'text-emerald-900 bg-emerald-100/80 border border-emerald-200/60';
+      } else {
+        // Krokodyl (id 6)
+        cardBg = 'bg-orange-50/65 border border-orange-200/80 hover:border-orange-300 shadow-xs';
+        numColor = 'text-orange-950 bg-orange-100/90 border border-orange-200/60';
+      }
+    } else {
+      // OBWÓD A:
+      // Brodzik i Rzeka przygód (2..3): pastelowy błękit (zjeżdżalnie)
+      // Fala - Bubling (4..8): delikatna mięta
+      // Bar - Dzika rzeka 2 (9..13): delikatna mięta
+      if (pos.id >= 2 && pos.id <= 3) {
+        cardBg = 'bg-sky-50/50 border border-sky-200/70 hover:border-sky-300 shadow-xs';
+        numColor = 'text-sky-900 bg-sky-100/80 border border-sky-200/60';
+      } else {
+        cardBg = 'bg-emerald-50/50 border border-emerald-200/70 hover:border-emerald-300 shadow-xs';
+        numColor = 'text-emerald-900 bg-emerald-100/80 border border-emerald-200/60';
+      }
+    }
+
+    gridHtml += `
+      <button type="button"
+        ${isDis ? 'disabled' : `onclick="selectPosition(${idx})"`}
+        class="text-left p-2.5 rounded-2xl border transition flex flex-col justify-between min-h-[58px] shadow-sm
+        ${isDis
+          ? 'bg-slate-100/60 border-slate-200/50 opacity-40 cursor-not-allowed'
+          : cardBg}">
+        
+        <div class="flex items-center justify-between w-full">
+          <div class="flex items-center gap-1.5 truncate">
+            <span class="font-mono text-[11px] font-extrabold px-1.5 py-0.5 rounded-md shrink-0 ${numColor}">${posNum}</span>
+            <span class="text-[12.5px] font-black ${isSpecialBreak ? 'text-amber-950' : 'text-slate-900'} truncate leading-tight tracking-tight">${pos.name}</span>
+          </div>
+          ${isSpecialBreak ? '<span class="text-[9px] font-black text-amber-800 bg-amber-200/80 px-1.5 py-0.5 rounded-md shrink-0 uppercase tracking-wider ml-1">Przerwa</span>' : ''}
+        </div>
+
+        <div class="flex items-center justify-between w-full mt-1.5 pt-1 border-t ${isSpecialBreak ? 'border-amber-200/80' : 'border-slate-100/80'} text-[10px]">
+          ${isDis
+            ? `<span class="text-rose-500 font-bold">Wyłączone</span>`
+            : `<span class="font-mono ${isSpecialBreak ? 'text-amber-900 font-extrabold' : 'text-slate-600 font-bold'}">Start ${startTimeStr}</span>`
+          }
+        </div>
+      </button>
+    `;
+  });
+
+  container.innerHTML = `
+    <div class="space-y-3">
+      <div class="flex items-center justify-between px-0.5">
+        <div>
+          <h2 class="text-lg font-extrabold tracking-tight text-slate-800">Stanowisko startowe</h2>
+          <p class="text-[11px] text-slate-500">Wybierz stanowisko • Obwód ${state.circuit}</p>
+        </div>
+        <button onclick="openModal()" class="text-xs ${state.circuit === 'A' ? 'text-indigo-600 bg-indigo-50 border-indigo-200 hover:bg-indigo-100' : 'text-purple-600 bg-purple-50 border-purple-200 hover:bg-purple-100'} font-bold px-3 py-1.5 rounded-xl border shadow-sm transition">
+          Konfiguracja
+        </button>
+      </div>
+
+      <!-- Kompaktowa siatka w 2 kolumny: mieści się w całości na jednym ekranie -->
+      <div class="grid grid-cols-2 gap-2">
+        ${gridHtml}
+      </div>
+    </div>
+  `;
+}
+
+function selectPosition(idx) {
+  state.startIdx = idx;
+  setStep(4);
+}
+
+// ───────────────────────────────────────────────────────────
+// KROK 4: Panel główny (Tylko najważniejsze informacje)
+// ───────────────────────────────────────────────────────────
+function getStep4ScheduleHtml() {
+  const disabledSet = getDisabledSet();
+  const schedule = calculateSchedule(state.startIdx, state.circuit, state.day, disabledSet);
+  const now = getCurrentMinutes();
+
+  let currentSlot = null;
+  let nextSlot = null;
+  let curIndex = -1;
+
+  for (let i = 0; i < schedule.timeline.length; i++) {
+    const s = schedule.timeline[i];
+    if (now >= s.start && now < s.end) {
+      currentSlot = s;
+      curIndex = i;
+      break;
+    }
+  }
+
+  if (currentSlot && curIndex + 1 < schedule.timeline.length) {
+    nextSlot = schedule.timeline[curIndex + 1];
+  }
+
+  const breaks = schedule.timeline.filter(s => s.pos.isBreak);
+
+  // 1. KARTA: AKTUALNE STANOWISKO
+  let liveCardHtml = '';
+  if (now < schedule.startTime) {
+    const minLeft = schedule.startTime - now;
+    const h = Math.floor(minLeft / 60);
+    const m = minLeft % 60;
+    const timeStr = h > 0 ? `${h} godz. ${m} min` : `${m} min`;
+
+    liveCardHtml = `
+      <div class="glass-panel p-5 rounded-3xl space-y-1.5 border border-indigo-100">
+        <span class="text-[11px] font-bold text-indigo-600 uppercase tracking-wider block">Status</span>
+        <div class="text-xl font-extrabold text-slate-800">
+          Zmiana jeszcze się nie rozpoczęła
+        </div>
+        <p class="text-xs text-slate-500">
+          Początek o <b class="font-mono text-slate-800">${fmt(schedule.startTime)}</b> (za ${timeStr})
+        </p>
+      </div>
+    `;
+  } else if (now >= schedule.finishTime) {
+    liveCardHtml = `
+      <div class="glass-panel p-5 rounded-3xl space-y-1.5 border border-emerald-100 bg-emerald-50/20">
+        <span class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider block">Status</span>
+        <div class="text-xl font-extrabold text-slate-800">
+          Zmiana zakończona
+        </div>
+        <p class="text-xs text-slate-500">
+          Koniec o godzinie <b class="font-mono text-slate-800">${fmt(schedule.finishTime)}</b>
+        </p>
+      </div>
+    `;
+  } else if (currentSlot) {
+    const isBreak = currentSlot.pos.isBreak;
+    const minLeft = currentSlot.end - now;
+    const total = currentSlot.end - currentSlot.start;
+    const pct = Math.min(100, Math.round(((now - currentSlot.start) / total) * 100));
+    const accentTheme = isBreak
+      ? {
+          badge: 'text-amber-800 bg-amber-100/90 border-amber-200/80',
+          title: 'text-amber-950',
+          timeBadge: 'text-amber-950 bg-amber-100/80 border-amber-200/80',
+          border: 'border-amber-300 shadow-md bg-gradient-to-br from-amber-50/70 via-white to-white'
+        }
+      : {
+          badge: 'text-indigo-700 bg-indigo-50 border-indigo-100',
+          title: 'text-slate-900',
+          timeBadge: 'text-indigo-950 bg-indigo-50/90 border-indigo-100',
+          border: 'border-indigo-100/80 shadow-md bg-white/95'
+        };
+
+    liveCardHtml = `
+      <div class="glass-panel p-5 rounded-3xl space-y-3.5 border ${accentTheme.border}">
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-xl border ${accentTheme.badge}">
+            Aktualne stanowisko
+          </span>
+          <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100/80 border border-slate-200/70">
+            <span class="text-[10px] font-bold text-slate-400 uppercase">${state.testMode ? 'Test' : 'Teraz'}</span>
+            <span class="text-xs font-mono font-extrabold text-slate-800">${fmt(now)}</span>
+          </div>
+        </div>
+
+        <div>
+          <div class="text-2xl font-black ${accentTheme.title} tracking-tight">
+            ${state.circuit}${currentSlot.pos.id} ${currentSlot.pos.name}
+          </div>
+          <!-- Wyraźnie i estetycznie wyróżniony czas slotu -->
+          <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl font-mono text-xs font-black border mt-1.5 ${accentTheme.timeBadge}">
+            <span>${fmt(currentSlot.start)} – ${fmt(currentSlot.end)}</span>
+          </div>
+        </div>
+
+        <!-- Pasek postępu -->
+        <div class="space-y-1.5 pt-0.5">
+          <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200/50">
+            <div class="h-full ${isBreak ? 'bg-amber-500' : 'bg-indigo-600'} rounded-full transition-all duration-300" style="width: ${pct}%"></div>
+          </div>
+          <div class="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+            <span class="text-slate-400">Slot 30 min</span>
+            <span class="font-extrabold ${isBreak ? 'text-amber-800 bg-amber-50 border-amber-200' : 'text-indigo-700 bg-indigo-50 border-indigo-100'} px-2 py-0.5 rounded-lg border">
+              Pozostało ${minLeft} min
+            </span>
+          </div>
+        </div>
+
+        ${nextSlot ? `
+          <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span class="text-slate-400 font-medium">Następnie:</span>
+            <div class="flex items-center gap-1.5">
+              <span class="font-black text-slate-800">${state.circuit}${nextSlot.pos.id} ${nextSlot.pos.name}</span>
+              <span class="font-mono text-[11px] font-extrabold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200/60">${fmt(nextSlot.start)}</span>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  // 2. PODSUMOWANIE (Koniec zmiany: na stanowisku i czas razem z wyrazistym wyróżnieniem)
+  const summaryHtml = `
+    <div class="glass-card p-4 rounded-3xl border border-slate-200/60 shadow-xs">
+      <span class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Koniec zmiany</span>
+      <div class="text-[14px] font-bold text-slate-700 mt-1.5 leading-relaxed">
+        Na stanowisku <span class="text-indigo-600 font-black text-[15px] px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-100/80 inline-block">${state.circuit}${schedule.finalPos.id} ${schedule.finalPos.name}</span> do <span class="font-mono text-indigo-600 font-black text-[15px] px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-100/80 inline-block">${fmt(schedule.finishTime)}</span>
+      </div>
+    </div>
+  `;
+
+  // 3. SZCZEGÓŁOWA LISTA PRZERW
+  let breaksListHtml = '';
+  if (breaks.length === 0) {
+    breaksListHtml = `<p class="text-xs text-slate-400 p-2 text-center">Brak przerw podczas tej zmiany</p>`;
+  } else {
+    breaksListHtml = `
+      <div class="space-y-1.5">
+        ${breaks.map(b => {
+          const isPast = now >= b.end;
+          const isCur = now >= b.start && now < b.end;
+          return `
+            <div class="flex items-center justify-between p-2.5 px-3 rounded-2xl border text-xs transition
+              ${isCur
+                ? 'bg-amber-50 border-amber-300 font-extrabold text-amber-950 shadow-xs'
+                : (isPast
+                  ? 'bg-slate-50/40 border-slate-100 text-slate-400 line-through opacity-60'
+                  : 'bg-white/80 border-slate-200/70 text-slate-700')}">
+              <span class="font-mono text-xs font-bold ${isCur ? 'text-amber-950' : (isPast ? 'text-slate-400' : 'text-slate-700')}">
+                ${fmt(b.start)} – ${fmt(b.end)}
+              </span>
+              <span class="text-[11px] font-bold px-2 py-0.5 rounded-lg ${isCur ? 'text-amber-900 bg-amber-100/80 border border-amber-200/80' : (isPast ? 'text-slate-400' : 'text-amber-800 bg-amber-50 border border-amber-200/50')}">
+                ${isCur ? 'Trwa teraz' : (isPast ? 'Zakończona' : '30 minut')}
+              </span>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  // 4. HARMONOGRAM (ROZWIJANY PO PRZYCISKU - DELIKATNE, NIEBĘDĄCE KRZYKLIWYMI KOLORY)
+  let slotsHtml = '';
+  schedule.timeline.forEach(slot => {
+    const isCur = (now >= slot.start && now < slot.end);
+    const isPast = (now >= slot.end);
+    const p = slot.pos;
+
+    let rowBg = 'bg-white/90 border-slate-200/80 text-slate-800';
+    let timeColor = 'text-slate-600';
+    let badgeHtml = '';
+
+    if (isCur) {
+      rowBg = 'bg-indigo-50/80 border-indigo-200 font-black text-indigo-950 shadow-xs ring-1 ring-indigo-200/40';
+      timeColor = 'text-indigo-900';
+      badgeHtml = '<span class="text-[10px] font-black text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">Teraz</span>';
+    } else if (isPast) {
+      rowBg = 'bg-slate-50/50 border-transparent text-slate-400 opacity-60';
+      timeColor = 'text-slate-400';
+    } else if (p.isBreak) {
+      rowBg = 'bg-amber-50/50 border-amber-200/60 text-amber-950';
+      timeColor = 'text-amber-900 font-bold';
+      badgeHtml = '<span class="text-[9px] font-bold text-amber-700 uppercase tracking-wider shrink-0">Przerwa</span>';
+    } else if (state.circuit === 'B' && p.id >= 7 && p.id <= 12) {
+      rowBg = 'bg-orange-50/40 border-orange-100 text-slate-800';
+    } else if (state.circuit === 'B' && p.id >= 2 && p.id <= 5) {
+      rowBg = 'bg-sky-50/40 border-sky-100 text-slate-800';
+    } else if (state.circuit === 'A' && (p.id === 2 || p.id === 3)) {
+      rowBg = 'bg-sky-50/40 border-sky-100 text-slate-800';
+    } else {
+      rowBg = 'bg-emerald-50/30 border-emerald-100/60 text-slate-800';
+    }
+
+    slotsHtml += `
+      <div class="flex items-center justify-between p-2.5 rounded-2xl border text-xs transition ${rowBg}">
+        <span class="font-mono text-xs w-28 shrink-0 font-extrabold ${timeColor}">${fmt(slot.start)} – ${fmt(slot.end)}</span>
+        <span class="truncate flex-1 px-1.5 font-bold">${state.circuit}${slot.pos.id} ${slot.pos.name}</span>
+        ${badgeHtml}
+      </div>
+    `;
+  });
+
+  return `
+    <!-- 1. Aktualne stanowisko -->
+    ${liveCardHtml}
+
+    <!-- 2. Koniec zmiany -->
+    ${summaryHtml}
+
+    <!-- 3. Twoje przerwy -->
+    <div class="glass-card p-4 rounded-3xl space-y-2.5 border border-slate-200/60 shadow-xs">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-extrabold text-slate-500 uppercase tracking-wider">
+          Godziny przerw
+        </span>
+        <span class="text-xs font-mono font-bold text-amber-900 bg-amber-50 px-2.5 py-0.5 rounded-lg border border-amber-200/60">
+          ${breaks.length} ${breaks.length === 1 ? 'przerwa' : (breaks.length < 5 ? 'przerwy' : 'przerw')}
+        </span>
+      </div>
+      ${breaksListHtml}
+    </div>
+
+    <!-- 4. Przycisk rozwijania pełnego harmonogramu -->
+    <div class="space-y-2">
+      <button type="button" onclick="toggleScheduleSlots()"
+        class="w-full py-3 px-4 rounded-2xl bg-white border border-indigo-100 hover:border-indigo-200 shadow-sm text-xs font-bold text-indigo-700 hover:bg-indigo-50/40 transition flex items-center justify-between">
+        <span>${state.showAllSlots ? 'Ukryj pełny harmonogram' : 'Pokaż pełny harmonogram rotacji'}</span>
+        <span class="text-slate-400 text-xs">${state.showAllSlots ? '▲' : '▼'}</span>
+      </button>
+
+      ${state.showAllSlots ? `
+        <div class="glass-card p-3.5 rounded-3xl space-y-1.5 animate-fadeIn">
+          <div class="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider pb-1 px-1">
+            <span>Godzina</span>
+            <span>Stanowisko</span>
+          </div>
+          ${slotsHtml}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function renderStep4(container) {
+  container.innerHTML = `
+    <div class="space-y-3.5 pb-5">
+      <div id="step4-schedule-content" class="space-y-3.5">
+        ${getStep4ScheduleHtml()}
+      </div>
+
+      <!-- 5. Symulacja czasu -->
+      <div class="pt-2 border-t border-slate-200/60 space-y-2.5">
+        <div class="flex items-center justify-between px-1">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold text-slate-600">
+              Symulacja czasu (test)
+            </span>
+            ${state.testMode ? `
+              <span class="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200/80">Aktywna</span>
+            ` : ''}
+          </div>
+          <div onclick="toggleTestMode()" class="soft-switch ${state.testMode ? 'active' : ''}"></div>
+        </div>
+
+        ${state.testMode ? `
+          <div class="p-3.5 rounded-2xl glass-card space-y-2.5 border border-indigo-100/80">
+            <div class="flex items-center gap-3">
+              <input id="test-time-slider" type="range" min="540" max="1350" value="${state.testMinutes}" step="5" oninput="updateTestTime(this.value)" class="flex-1 accent-indigo-600">
+              <span id="test-time-badge" class="font-mono text-xs font-black text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2.5 py-1 rounded-xl w-16 text-center shadow-xs">
+                ${fmt(state.testMinutes)}
+              </span>
+            </div>
+
+            <!-- Szybka zmiana czasu -->
+            <div class="flex items-center justify-between gap-1.5 pt-0.5 text-xs">
+              <button type="button" onclick="adjustTestTime(-30)" class="flex-1 py-1.5 px-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200/80 text-slate-700 font-bold text-[11px] shadow-xs active:scale-[0.98] transition text-center">
+                -30m
+              </button>
+              <button type="button" onclick="adjustTestTime(-10)" class="flex-1 py-1.5 px-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200/80 text-slate-700 font-bold text-[11px] shadow-xs active:scale-[0.98] transition text-center">
+                -10m
+              </button>
+              <button type="button" onclick="resetTestTimeToReal()" class="flex-1 py-1.5 px-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100/70 border border-indigo-200/80 text-indigo-700 font-bold text-[11px] shadow-xs active:scale-[0.98] transition text-center">
+                Teraz
+              </button>
+              <button type="button" onclick="adjustTestTime(10)" class="flex-1 py-1.5 px-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200/80 text-slate-700 font-bold text-[11px] shadow-xs active:scale-[0.98] transition text-center">
+                +10m
+              </button>
+              <button type="button" onclick="adjustTestTime(30)" class="flex-1 py-1.5 px-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200/80 text-slate-700 font-bold text-[11px] shadow-xs active:scale-[0.98] transition text-center">
+                +30m
+              </button>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+
+    </div>
+  `;
+}
+
+function refreshStep4Schedule() {
+  const container = document.getElementById('step4-schedule-content');
+  if (container) {
+    container.innerHTML = getStep4ScheduleHtml();
+  }
+}
+
+function toggleScheduleSlots() {
+  state.showAllSlots = !state.showAllSlots;
+  refreshStep4Schedule();
+}
+
+function toggleTestMode() {
+  state.testMode = !state.testMode;
+  if (state.testMode) {
+    const now = new Date();
+    const cur = now.getHours() * 60 + now.getMinutes();
+    state.testMinutes = Math.max(540, Math.min(1350, Math.round(cur / 5) * 5));
+  }
+  renderCurrentStep();
+}
+
+function updateTestTime(val) {
+  state.testMinutes = parseInt(val, 10);
+  const badge = document.getElementById('test-time-badge');
+  if (badge) badge.textContent = fmt(state.testMinutes);
+  refreshStep4Schedule();
+}
+
+function adjustTestTime(delta) {
+  const newVal = Math.max(540, Math.min(1350, state.testMinutes + delta));
+  state.testMinutes = newVal;
+  const slider = document.getElementById('test-time-slider');
+  if (slider) slider.value = newVal;
+  const badge = document.getElementById('test-time-badge');
+  if (badge) badge.textContent = fmt(newVal);
+  refreshStep4Schedule();
+}
+
+function resetTestTimeToReal() {
+  const now = new Date();
+  const cur = now.getHours() * 60 + now.getMinutes();
+  const newVal = Math.max(540, Math.min(1350, Math.round(cur / 5) * 5));
+  state.testMinutes = newVal;
+  const slider = document.getElementById('test-time-slider');
+  if (slider) slider.value = newVal;
+  const badge = document.getElementById('test-time-badge');
+  if (badge) badge.textContent = fmt(newVal);
+  refreshStep4Schedule();
+}
+
+// ═══════════════════════════════════════════════════════════
+// 6. OKNO MODALNE KONFIGURACJI STANOWISK (DLA OBWODU)
+// ═══════════════════════════════════════════════════════════
+
+function openModal() {
+  const modal = document.getElementById('modal-container');
+  modal.classList.remove('hidden');
+  renderModalContent();
+}
+
+function closeModal() {
+  const modal = document.getElementById('modal-container');
+  modal.classList.add('hidden');
+  saveSettings();
+  renderCurrentStep();
+}
+
+function renderModalContent() {
+  const modal = document.getElementById('modal-container');
+  const positions = getPositions();
+  const disabledList = state.circuit === 'A' ? state.offA : state.offB;
+  const isA = (state.circuit === 'A');
+  const badgeBg = isA ? 'bg-indigo-50 text-indigo-700' : 'bg-purple-50 text-purple-700';
+  const btnBg = isA ? 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20' : 'bg-purple-600 hover:bg-purple-500 shadow-purple-500/20';
+
+  let itemsHtml = '';
+  positions.forEach((pos, idx) => {
+    if (pos.isBreak) {
+      itemsHtml += `
+        <div class="flex items-center justify-between p-3 rounded-2xl bg-amber-50 border border-amber-200/60">
+          <div>
+            <span class="text-xs font-bold text-amber-950">${state.circuit}${pos.id} ${pos.name}</span>
+            <span class="text-[10px] text-amber-600 block">Przerwa jest zawsze aktywna</span>
+          </div>
+          <span class="text-xs font-bold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-lg">Wł.</span>
+        </div>
+      `;
+      return;
+    }
+
+    const isOff = disabledList.includes(idx);
+    itemsHtml += `
+      <div class="flex items-center justify-between p-2.5 px-3 rounded-2xl border bg-white transition
+        ${isOff ? 'border-slate-200/60 opacity-60' : 'border-slate-200'}">
+        <span class="text-xs font-bold truncate block ${isOff ? 'text-slate-400 line-through' : 'text-slate-800'}">
+          ${state.circuit}${pos.id} ${pos.name}
+        </span>
+        <div onclick="togglePositionDisabled(${idx})" class="soft-switch ${isOff ? '' : 'active'}"></div>
+      </div>
+    `;
+  });
+
+  modal.innerHTML = `
+    <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-sm" onclick="closeModal()">
+      <div class="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl border-t sm:border border-slate-200 shadow-2xl flex flex-col max-h-[85vh] overflow-hidden" onclick="event.stopPropagation()">
+        
+        <!-- Nagłówek dla wybranego obwodu -->
+        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="text-base font-extrabold text-slate-800">Konfiguracja • Obwód ${state.circuit}</h3>
+              <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${badgeBg}">
+                ${positions.length} stanowisk
+              </span>
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5">Włącz lub wyłącz stanowiska w Obwodzie ${state.circuit}</p>
+          </div>
+          <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 font-bold flex items-center justify-center hover:bg-slate-200 transition">
+            ✕
+          </button>
+        </div>
+
+        <!-- Lista stanowisk -->
+        <div class="p-4 space-y-2 overflow-y-auto flex-1">
+          ${itemsHtml}
+        </div>
+
+        <!-- Stopka -->
+        <div class="p-4 border-t border-slate-100 bg-slate-50 flex items-center gap-2">
+          <button type="button" onclick="resetPositionsToDefault()" class="flex-1 py-3 text-center text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-2xl hover:bg-slate-100 transition shadow-sm">
+            Resetuj Obwód ${state.circuit}
+          </button>
+          <button type="button" onclick="closeModal()" class="py-3 px-6 text-center text-xs font-bold text-white ${btnBg} rounded-2xl transition shadow-md">
+            Gotowe
+          </button>
+        </div>
+
+      </div>
+    </div>
+  `;
+}
+
+function togglePositionDisabled(idx) {
+  const arr = state.circuit === 'A' ? state.offA : state.offB;
+  const posInArr = arr.indexOf(idx);
+
+  if (posInArr >= 0) {
+    arr.splice(posInArr, 1);
+  } else {
+    arr.push(idx);
+  }
+
+  saveSettings();
+  renderModalContent();
+}
+
+function resetPositionsToDefault() {
+  if (state.circuit === 'A') {
+    state.offA = [];
+  } else {
+    state.offB = [5, 13];
+  }
+  saveSettings();
+  renderModalContent();
+}
+
+// ═══════════════════════════════════════════════════════════
+// 7. INICJALIZACJA I ODŚWIEŻANIE
+// ═══════════════════════════════════════════════════════════
+
+setInterval(() => {
+  if (!state.testMode && state.step === 4) {
+    refreshStep4Schedule();
+  }
+}, 30000);
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderCurrentStep();
+});
+</script>
+</body>
+</html>

@@ -136,10 +136,11 @@ input[type=range]::-webkit-slider-thumb {
 'use strict';
 
 // ═══════════════════════════════════════════════════════════
-// 1. STANOWISKA (OBWÓD A & B)
+// 1. STANOWISKA (OBWÓD A & B - SEZON WYSOKI I NISKI)
 // ═══════════════════════════════════════════════════════════
 
-const OBWOD_A = [
+// SEZON WYSOKI (High Season)
+const OBWOD_A_HIGH = [
   { id: 1,  name: 'Przerwa',          sub: null,      isBreak: true },
   { id: 2,  name: 'Brodzik',          sub: 'SLIDES1' },
   { id: 3,  name: 'Rzeka przygód',    sub: 'SLIDES1' },
@@ -155,14 +156,14 @@ const OBWOD_A = [
   { id: 13, name: 'Dzika rzeka 2',    sub: null },
 ];
 
-const OBWOD_B = [
+const OBWOD_B_HIGH = [
   { id: 1,  name: 'Przerwa',          sub: null,      isBreak: true },
   { id: 2,  name: 'Grota',            sub: 'SLIDES2' },
   { id: 3,  name: 'Anaconda',         sub: 'SLIDES2' },
   { id: 4,  name: 'Wyciągarka',       sub: 'SLIDES2' },
   { id: 5,  name: 'Viper',            sub: 'SLIDES2' },
   { id: 6,  name: 'Krokodyl',         sub: null,      defOff: true },
-  { id: 7,  name: 'Vital',            sub: null },
+  { id: 7,  name: 'Vitale F',         sub: null },
   { id: 8,  name: 'Termalny',         sub: null },
   { id: 9,  name: 'Floating',         sub: null },
   { id: 10, name: 'Łaźnia',           sub: null },
@@ -170,6 +171,35 @@ const OBWOD_B = [
   { id: 12, name: 'Termalny zew 2',   sub: null },
   { id: 13, name: 'Bar zewnętrzny',   sub: null },
   { id: 14, name: 'Dmuchaniec',       sub: null,      defOff: true },
+];
+
+// SEZON NISKI (Low Season)
+const OBWOD_A_LOW = [
+  { id: 1,  name: 'Przerwa',          sub: null,      isBreak: true },
+  { id: 2,  name: 'Grota',            sub: 'SLIDES2' },
+  { id: 3,  name: 'Brodzik',          sub: 'SLIDES1' },
+  { id: 4,  name: 'Rzeka przygód',    sub: 'SLIDES1' },
+  { id: 5,  name: 'Fala',             sub: null },
+  { id: 6,  name: 'Cypel',            sub: null },
+  { id: 7,  name: 'Plaża',            sub: null },
+  { id: 8,  name: 'Koraliki',         sub: null },
+  { id: 9,  name: 'Bubling',          sub: null },
+  { id: 10, name: 'Bar wewnętrzny',   sub: null },
+  { id: 11, name: 'Bar zewnętrzny',   sub: null },
+];
+
+const OBWOD_B_LOW = [
+  { id: 1,  name: 'Przerwa',          sub: null,      isBreak: true },
+  { id: 2,  name: 'Anaconda',         sub: 'SLIDES2' },
+  { id: 3,  name: 'Wyciągarka',       sub: 'SLIDES2' },
+  { id: 4,  name: 'Viper',            sub: 'SLIDES2' },
+  { id: 5,  name: 'Krokodyl',         sub: null,      defOff: true },
+  { id: 6,  name: 'Vitale F',         sub: null },
+  { id: 7,  name: 'Termalny',         sub: null },
+  { id: 8,  name: 'Floating',         sub: null },
+  { id: 9,  name: 'Łaźnia',           sub: null },
+  { id: 10, name: 'Termalny zew 1',   sub: null },
+  { id: 11, name: 'Termalny zew 2',   sub: null },
 ];
 
 const DAYS_NAMES = ['Niedziela', 'Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota'];
@@ -183,26 +213,45 @@ const state = {
   step: 1, // 1: Imię, 2: Obwód, 3: Stanowisko, 4: Panel główny
   userName: localStorage.getItem('shift_name') || '',
   day: new Date().getDay(),
+  season: localStorage.getItem('shift_season') || 'low', // 'low' (Sezon niski) | 'high' (Sezon wysoki)
   circuit: localStorage.getItem('shift_circuit') || 'A',
   startIdx: null,
-  offA: JSON.parse(localStorage.getItem('shift_off_A') || '[]'),
-  offB: JSON.parse(localStorage.getItem('shift_off_B') || '[5, 13]'), // Krokodyl (5), Dmuchaniec (13)
+  disabledBySeason: JSON.parse(localStorage.getItem('shift_disabled_v2') || '{}'),
   showAllSlots: false,
 };
 
-function saveSettings() {
-  localStorage.setItem('shift_name', state.userName);
-  localStorage.setItem('shift_circuit', state.circuit);
-  localStorage.setItem('shift_off_A', JSON.stringify(state.offA));
-  localStorage.setItem('shift_off_B', JSON.stringify(state.offB));
+function getPositionsFor(circuit, season) {
+  if (season === 'low') {
+    return circuit === 'A' ? OBWOD_A_LOW : OBWOD_B_LOW;
+  }
+  return circuit === 'A' ? OBWOD_A_HIGH : OBWOD_B_HIGH;
 }
 
 function getPositions() {
-  return state.circuit === 'A' ? OBWOD_A : OBWOD_B;
+  return getPositionsFor(state.circuit, state.season);
+}
+
+function getDisabledList() {
+  const key = `${state.season}_${state.circuit}`;
+  if (!state.disabledBySeason[key]) {
+    if (state.season === 'low') {
+      state.disabledBySeason[key] = state.circuit === 'A' ? [] : [4]; // Krokodyl
+    } else {
+      state.disabledBySeason[key] = state.circuit === 'A' ? [] : [5, 13]; // Krokodyl, Dmuchaniec
+    }
+  }
+  return state.disabledBySeason[key];
 }
 
 function getDisabledSet() {
-  return new Set(state.circuit === 'A' ? state.offA : state.offB);
+  return new Set(getDisabledList());
+}
+
+function saveSettings() {
+  localStorage.setItem('shift_name', state.userName);
+  localStorage.setItem('shift_season', state.season);
+  localStorage.setItem('shift_circuit', state.circuit);
+  localStorage.setItem('shift_disabled_v2', JSON.stringify(state.disabledBySeason));
 }
 
 function isSlide(p) {
@@ -296,7 +345,7 @@ function findNextPosition(curIdx, positions, disabledSet, slidesOpen) {
 }
 
 function calculateSchedule(startIdx, circuitKey, dayNum, disabledSet) {
-  const positions = circuitKey === 'A' ? OBWOD_A : OBWOD_B;
+  const positions = getPositionsFor(circuitKey, state.season);
   const cfg = getDayConfig(dayNum);
   const startPos = positions[startIdx];
   const slideWorker = isSlide(startPos);
@@ -431,7 +480,8 @@ function updateNav() {
     `;
     footer.textContent = state.userName ? `Pracownik: ${state.userName}` : 'Wybór obwodu';
   } else if (state.step === 3) {
-    subtitle.textContent = `Krok 3 • Obwód ${state.circuit}`;
+    const seasonLabel = state.season === 'low' ? 'Sezon niski' : 'Sezon wysoki';
+    subtitle.textContent = `Krok 3 • Obwód ${state.circuit} (${seasonLabel})`;
     actions.innerHTML = `
       <button onclick="setStep(2)" class="text-xs font-semibold px-3 py-1.5 rounded-xl bg-white/80 hover:bg-white text-indigo-600 border border-indigo-100 shadow-sm transition">
         Wstecz
@@ -439,7 +489,8 @@ function updateNav() {
     `;
     footer.textContent = state.userName ? `${state.userName} • Obwód ${state.circuit}` : `Obwód ${state.circuit}`;
   } else if (state.step === 4) {
-    subtitle.textContent = `${DAYS_NAMES[state.day]} • Obwód ${state.circuit}`;
+    const seasonLabel = state.season === 'low' ? 'niski' : 'wysoki';
+    subtitle.textContent = `${DAYS_NAMES[state.day]} • Obwód ${state.circuit} (${seasonLabel})`;
     actions.innerHTML = `
       <button onclick="setStep(3)" class="text-xs font-semibold px-3 py-1.5 rounded-xl bg-white/80 hover:bg-white text-indigo-600 border border-indigo-100 shadow-sm transition">
         Zmień stanowisko
@@ -530,17 +581,45 @@ function finishStep1() {
 }
 
 // ───────────────────────────────────────────────────────────
-// KROK 2: Wybór obwodu (czysty widok, słowo stanowisko)
+// KROK 2: Wybór obwodu i sezonu
 // ───────────────────────────────────────────────────────────
 function renderStep2(container) {
+  const posA = getPositionsFor('A', state.season);
+  const posB = getPositionsFor('B', state.season);
+  const isLow = state.season === 'low';
+
   container.innerHTML = `
     <div class="space-y-4">
       <div class="text-center space-y-1">
         <h2 class="text-2xl font-extrabold tracking-tight text-slate-800">Wybór obwodu</h2>
-        <p class="text-xs text-slate-500">W którym obwodzie dzisiaj pracujesz?</p>
+        <p class="text-xs text-slate-500">Wybierz sezon oraz obwód, w którym dzisiaj pracujesz</p>
       </div>
 
-      <div class="space-y-3 pt-1">
+      <!-- Przełącznik sezonu (Niski / Wysoki) -->
+      <div class="p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div class="flex items-center justify-between px-2 pb-1.5 pt-0.5">
+          <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Tryb sezonu</span>
+          <span class="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-lg">
+            ${isLow ? 'Sezon niski (jesień/zima)' : 'Sezon wysoki (lato)'}
+          </span>
+        </div>
+        <div class="grid grid-cols-2 gap-1.5">
+          <button type="button" onclick="setSeason('low')"
+            class="py-2.5 px-3 rounded-xl text-xs font-black transition-all duration-200 flex items-center justify-center gap-1.5 active:scale-[0.98]
+            ${isLow ? 'bg-white text-indigo-700 shadow-sm border border-indigo-100' : 'text-slate-500 hover:text-slate-800'}">
+            <span>Sezon niski</span>
+            ${isLow ? '<span class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>' : ''}
+          </button>
+          <button type="button" onclick="setSeason('high')"
+            class="py-2.5 px-3 rounded-xl text-xs font-black transition-all duration-200 flex items-center justify-center gap-1.5 active:scale-[0.98]
+            ${!isLow ? 'bg-white text-indigo-700 shadow-sm border border-indigo-100' : 'text-slate-500 hover:text-slate-800'}">
+            <span>Sezon wysoki</span>
+            ${!isLow ? '<span class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>' : ''}
+          </button>
+        </div>
+      </div>
+
+      <div class="space-y-3 pt-0.5">
         <!-- Obwód A -->
         <button type="button" onclick="selectCircuit('A')"
           class="w-full text-left p-4 rounded-3xl bg-white border border-indigo-100 hover:border-indigo-300 hover:shadow-md active:scale-[0.99] transition flex items-center justify-between shadow-sm">
@@ -551,9 +630,9 @@ function renderStep2(container) {
             <div>
               <div class="flex items-center gap-2">
                 <span class="text-base font-bold text-slate-800">Obwód A</span>
-                <span class="text-xs font-bold font-mono px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-lg">13 stanowisk</span>
+                <span class="text-xs font-bold font-mono px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-lg">${posA.length} stanowisk</span>
               </div>
-              <p class="text-xs text-slate-500 mt-0.5">Brodzik, Rzeka przygód...</p>
+              <p class="text-xs text-slate-500 mt-0.5">${isLow ? 'Grota, Brodzik, Rzeka przygód, Bar zew...' : 'Brodzik, Rzeka przygód, Fala, Relax...'}</p>
             </div>
           </div>
           <span class="text-indigo-400 font-bold text-base">→</span>
@@ -569,9 +648,9 @@ function renderStep2(container) {
             <div>
               <div class="flex items-center gap-2">
                 <span class="text-base font-bold text-slate-800">Obwód B</span>
-                <span class="text-xs font-bold font-mono px-2 py-0.5 bg-purple-50 text-purple-700 rounded-lg">14 stanowisk</span>
+                <span class="text-xs font-bold font-mono px-2 py-0.5 bg-purple-50 text-purple-700 rounded-lg">${posB.length} stanowisk</span>
               </div>
-              <p class="text-xs text-slate-500 mt-0.5">Grota, Anaconda, Wyciągarka...</p>
+              <p class="text-xs text-slate-500 mt-0.5">${isLow ? 'Anaconda, Wyciągarka, Viper, Vitale F...' : 'Grota, Anaconda, Wyciągarka, Viper...'}</p>
             </div>
           </div>
           <span class="text-purple-400 font-bold text-base">→</span>
@@ -580,6 +659,12 @@ function renderStep2(container) {
 
     </div>
   `;
+}
+
+function setSeason(s) {
+  state.season = s;
+  saveSettings();
+  renderCurrentStep();
 }
 
 function selectCircuit(c) {
@@ -611,38 +696,22 @@ function renderStep3(container) {
       // 1. PRZERWA: specjalne, wyraziste lecz delikatne wyróżnienie
       cardBg = 'bg-amber-50/80 border border-amber-300/90 shadow-xs hover:border-amber-400';
       numColor = 'text-amber-900 bg-amber-100/90 border border-amber-200/70 font-extrabold';
+    } else if (isSlides) {
+      // Zjeżdżalnie (Grota, Anaconda, Wyciągarka, Viper, Brodzik, Rzeka przygód): pastelowy błękit
+      cardBg = 'bg-sky-50/50 border border-sky-200/70 hover:border-sky-300 shadow-xs';
+      numColor = 'text-sky-900 bg-sky-100/80 border border-sky-200/60';
+    } else if (pos.name.includes('Bar')) {
+      // Bary: delikatna mięta
+      cardBg = 'bg-emerald-50/50 border border-emerald-200/70 hover:border-emerald-300 shadow-xs';
+      numColor = 'text-emerald-900 bg-emerald-100/80 border border-emerald-200/60';
     } else if (state.circuit === 'B') {
-      // OBWÓD B:
-      // Grota - Viper (2..5): pastelowy błękit (zjeżdżalnie)
-      // Vital - Termalny 2 (7..12): miękki ciepły pomarańcz
-      // Bar - Dmuchaniec (13..14): delikatna mięta (Dmuchaniec domyślnie wyłączony)
-      // Krokodyl (6): domyślnie wyłączony
-      if (pos.id >= 2 && pos.id <= 5) {
-        cardBg = 'bg-sky-50/50 border border-sky-200/70 hover:border-sky-300 shadow-xs';
-        numColor = 'text-sky-900 bg-sky-100/80 border border-sky-200/60';
-      } else if (pos.id >= 7 && pos.id <= 12) {
-        cardBg = 'bg-orange-50/65 border border-orange-200/80 hover:border-orange-300 shadow-xs';
-        numColor = 'text-orange-950 bg-orange-100/90 border border-orange-200/60';
-      } else if (pos.id >= 13) {
-        cardBg = 'bg-emerald-50/50 border border-emerald-200/70 hover:border-emerald-300 shadow-xs';
-        numColor = 'text-emerald-900 bg-emerald-100/80 border border-emerald-200/60';
-      } else {
-        // Krokodyl (id 6)
-        cardBg = 'bg-orange-50/65 border border-orange-200/80 hover:border-orange-300 shadow-xs';
-        numColor = 'text-orange-950 bg-orange-100/90 border border-orange-200/60';
-      }
+      // Strefa termalna / Vitale F: ciepły pomarańcz
+      cardBg = 'bg-orange-50/65 border border-orange-200/80 hover:border-orange-300 shadow-xs';
+      numColor = 'text-orange-950 bg-orange-100/90 border border-orange-200/60';
     } else {
-      // OBWÓD A:
-      // Brodzik i Rzeka przygód (2..3): pastelowy błękit (zjeżdżalnie)
-      // Fala - Bubling (4..8): delikatna mięta
-      // Bar - Dzika rzeka 2 (9..13): delikatna mięta
-      if (pos.id >= 2 && pos.id <= 3) {
-        cardBg = 'bg-sky-50/50 border border-sky-200/70 hover:border-sky-300 shadow-xs';
-        numColor = 'text-sky-900 bg-sky-100/80 border border-sky-200/60';
-      } else {
-        cardBg = 'bg-emerald-50/50 border border-emerald-200/70 hover:border-emerald-300 shadow-xs';
-        numColor = 'text-emerald-900 bg-emerald-100/80 border border-emerald-200/60';
-      }
+      // Pozostałe Obwód A (Fala, Cypel, Plaża, Koraliki, Bubling...): mięta
+      cardBg = 'bg-emerald-50/50 border border-emerald-200/70 hover:border-emerald-300 shadow-xs';
+      numColor = 'text-emerald-900 bg-emerald-100/80 border border-emerald-200/60';
     }
 
     gridHtml += `
@@ -676,7 +745,7 @@ function renderStep3(container) {
       <div class="flex items-center justify-between px-0.5">
         <div>
           <h2 class="text-lg font-extrabold tracking-tight text-slate-800">Stanowisko startowe</h2>
-          <p class="text-[11px] text-slate-500">Wybierz stanowisko • Obwód ${state.circuit}</p>
+          <p class="text-[11px] text-slate-500">Wybierz stanowisko • Obwód ${state.circuit} (${state.season === 'low' ? 'Sezon niski' : 'Sezon wysoki'})</p>
         </div>
         <button onclick="openModal()" class="text-xs ${state.circuit === 'A' ? 'text-indigo-600 bg-indigo-50 border-indigo-200 hover:bg-indigo-100' : 'text-purple-600 bg-purple-50 border-purple-200 hover:bg-purple-100'} font-bold px-3 py-1.5 rounded-xl border shadow-sm transition">
           Konfiguracja
@@ -891,12 +960,12 @@ function getStep4ScheduleHtml() {
       rowBg = 'bg-amber-50/50 border-amber-200/60 text-amber-950';
       timeColor = 'text-amber-900 font-bold';
       badgeHtml = '<span class="text-[9px] font-bold text-amber-700 uppercase tracking-wider shrink-0">Przerwa</span>';
-    } else if (state.circuit === 'B' && p.id >= 7 && p.id <= 12) {
+    } else if (isSlide(p)) {
+      rowBg = 'bg-sky-50/40 border-sky-100 text-slate-800';
+    } else if (p.name.includes('Bar')) {
+      rowBg = 'bg-emerald-50/30 border-emerald-100/60 text-slate-800';
+    } else if (state.circuit === 'B') {
       rowBg = 'bg-orange-50/40 border-orange-100 text-slate-800';
-    } else if (state.circuit === 'B' && p.id >= 2 && p.id <= 5) {
-      rowBg = 'bg-sky-50/40 border-sky-100 text-slate-800';
-    } else if (state.circuit === 'A' && (p.id === 2 || p.id === 3)) {
-      rowBg = 'bg-sky-50/40 border-sky-100 text-slate-800';
     } else {
       rowBg = 'bg-emerald-50/30 border-emerald-100/60 text-slate-800';
     }
@@ -1009,7 +1078,7 @@ function closeModal() {
 function renderModalContent() {
   const modal = document.getElementById('modal-container');
   const positions = getPositions();
-  const disabledList = state.circuit === 'A' ? state.offA : state.offB;
+  const disabledList = getDisabledList();
   const isA = (state.circuit === 'A');
   const badgeBg = isA ? 'bg-indigo-50 text-indigo-700' : 'bg-purple-50 text-purple-700';
   const btnBg = isA ? 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20' : 'bg-purple-600 hover:bg-purple-500 shadow-purple-500/20';
@@ -1054,7 +1123,7 @@ function renderModalContent() {
                 ${positions.length} stanowisk
               </span>
             </div>
-            <p class="text-xs text-slate-400 mt-0.5">Włącz lub wyłącz stanowiska w Obwodzie ${state.circuit}</p>
+            <p class="text-xs text-slate-400 mt-0.5">Włącz lub wyłącz stanowiska (${state.season === 'low' ? 'Sezon niski' : 'Sezon wysoki'})</p>
           </div>
           <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 font-bold flex items-center justify-center hover:bg-slate-200 transition">
             ✕
@@ -1082,7 +1151,7 @@ function renderModalContent() {
 }
 
 function togglePositionDisabled(idx) {
-  const arr = state.circuit === 'A' ? state.offA : state.offB;
+  const arr = getDisabledList();
   const posInArr = arr.indexOf(idx);
 
   if (posInArr >= 0) {
@@ -1096,10 +1165,11 @@ function togglePositionDisabled(idx) {
 }
 
 function resetPositionsToDefault() {
-  if (state.circuit === 'A') {
-    state.offA = [];
+  const key = `${state.season}_${state.circuit}`;
+  if (state.season === 'low') {
+    state.disabledBySeason[key] = state.circuit === 'A' ? [] : [4];
   } else {
-    state.offB = [5, 13];
+    state.disabledBySeason[key] = state.circuit === 'A' ? [] : [5, 13];
   }
   saveSettings();
   renderModalContent();
